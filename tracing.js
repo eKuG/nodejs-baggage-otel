@@ -30,7 +30,6 @@ class BaggageAnnotationSpanProcessor {
   }
 
   onEnd(span) {
-    // Nothing to do on end
   }
 
   shutdown() {
@@ -61,8 +60,8 @@ function initTracing() {
 
   sdk = new NodeSDK({
     spanProcessors: [
-      new BaggageAnnotationSpanProcessor(), // Our custom processor first
-      new BatchSpanProcessor(exporter)      // Then the export processor
+      new BaggageAnnotationSpanProcessor(),  
+      new BatchSpanProcessor(exporter)
     ],
     instrumentations: [
       getNodeAutoInstrumentations({
@@ -76,7 +75,6 @@ function initTracing() {
     ]
   });
 
-  // sdk.start() is synchronous, doesn't return a Promise
   sdk.start();
   console.log('✅ Tracing initialized');
 }

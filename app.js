@@ -98,7 +98,6 @@ const server = app.listen(3000, () => {
   console.log('  -H "x-tenant-id: tenant456"');
 });
 
-// Graceful shutdown
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
