@@ -1,3 +1,5 @@
+## You can use it with the `baggage` keyword. It is just for example
+
 `Run this using OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=<SIGNOZ_INGESTION_KEY>" node --require ./tracing.js app.js`
 
 I would also recommend you to change the url according to your own service endpoint
