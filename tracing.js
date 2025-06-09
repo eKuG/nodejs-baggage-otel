@@ -1,35 +1,37 @@
+// tracing.js
+
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-const { BatchSpanProcessor, SpanProcessor } = require('@opentelemetry/sdk-trace-base');
+const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { propagation, context } = require('@opentelemetry/api');
-const { CompositePropagator, W3CTraceContextPropagator, W3CBaggagePropagator } = require('@opentelemetry/core');
+const {
+  CompositePropagator,
+  W3CTraceContextPropagator,
+  W3CBaggagePropagator,
+} = require('@opentelemetry/core');
 
 // Custom Span Processor that reads baggage and annotates spans
 class BaggageAnnotationSpanProcessor {
   onStart(span, parentContext) {
     try {
-      // Get baggage from the current context
-      const baggage = propagation.getBaggage(parentContext || context.active());
-      
-      if (baggage) {
-        // Iterate through all baggage entries and add them as span attributes
-        for (const [key, entry] of baggage.getAllEntries()) {
-          // Prefix baggage attributes to distinguish them
-          span.setAttributes({
-            [`baggage.${key}`]: entry.value
-          });
+      const bag = propagation.getBaggage(parentContext || context.active());
+      if (bag) {
+        for (const [key, entry] of bag.getAllEntries()) {
+          span.setAttribute(`baggage.${key}`, entry.value);
         }
-        
-        console.log(`📝 Annotated span "${span.name}" with baggage:`, 
-          Object.fromEntries(baggage.getAllEntries()));
+        console.log(
+          `📝 Annotated span "${span.name}" with baggage:`,
+          Object.fromEntries(bag.getAllEntries())
+        );
       }
-    } catch (error) {
-      console.error('Error processing baggage in span processor:', error);
+    } catch (err) {
+      console.error('Error in BaggageAnnotationSpanProcessor onStart:', err);
     }
   }
 
   onEnd(span) {
+    // no-op
   }
 
   shutdown() {
@@ -43,13 +45,13 @@ class BaggageAnnotationSpanProcessor {
 
 let sdk;
 
-function initTracing() {
-  // Configure propagator
+async function initTracing() {
+  // Configure global propagator to extract both tracecontext & baggage
   propagation.setGlobalPropagator(
     new CompositePropagator({
       propagators: [
         new W3CTraceContextPropagator(),
-        new W3CBaggagePropagator()
+        new W3CBaggagePropagator(),
       ],
     })
   );
@@ -59,34 +61,32 @@ function initTracing() {
   });
 
   sdk = new NodeSDK({
+    // Note: plural "spanProcessors"
     spanProcessors: [
-      new BaggageAnnotationSpanProcessor(),  
-      new BatchSpanProcessor(exporter)
+      new BaggageAnnotationSpanProcessor(),
+      new BatchSpanProcessor(exporter),
     ],
     instrumentations: [
       getNodeAutoInstrumentations({
+        // HTTP instrumentation will extract incoming headers & baggage automatically
         '@opentelemetry/instrumentation-http': {
-          propagateBaggage: true
+          propagateBaggage: true,
         },
-        '@opentelemetry/instrumentation-express': {
-          enabled: true
-        }
-      })
-    ]
+        // Fastify instrumentation for your routes
+        '@opentelemetry/instrumentation-fastify': {},
+      }),
+    ],
   });
 
-  sdk.start();
+  await sdk.start();
   console.log('✅ Tracing initialized');
 }
 
 function shutdownTracing() {
-  if (sdk) {
-    return sdk.shutdown();
-  }
-  return Promise.resolve();
+  return sdk ? sdk.shutdown() : Promise.resolve();
 }
 
 module.exports = {
   initTracing,
-  shutdownTracing
+  shutdownTracing,
 };
